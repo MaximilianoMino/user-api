@@ -6,7 +6,8 @@ from typing import Any
 from src.core.constants import OAuth, Supabase
 from src.core.messages import ErrorMessages, LogMessages
 from src.core.supabase_client import get_supabase_client
-from src.models.auth import UserCreate, UserLogin
+from src.models.auth import SignupRequest, SignupResponse, UserLogin, UserProfile
+from src.services.usuario_repository import crear_perfil_usuario
 
 logger = logging.getLogger(__name__)
 
@@ -17,33 +18,70 @@ class AuthService:
     def __init__(self) -> None:
         self.client = get_supabase_client()
 
-    async def signup(self, user_data: UserCreate) -> dict[str, Any]:
-        """Register a new user in Supabase Auth"""
-        try:
-            auth_response = self.client.auth.sign_up(
-                {
-                    "email": user_data.email,
-                    "password": user_data.password,
-                    "options": {
-                        "data": {
-                            Supabase.FULL_NAME_FIELD: user_data.full_name,
-                        }
-                    },
-                }
+    async def signup(self, user_data: SignupRequest) -> SignupResponse:
+        """Register a new user in Supabase Auth and create profile in public.usuario"""
+        # 1. Crear usuario en Supabase Auth
+        auth_response = self.client.auth.sign_up(
+            {
+                "email": user_data.email,
+                "password": user_data.password,
+                "options": {
+                    "data": {
+                        "nombre": user_data.nombre,
+                    }
+                },
+            }
+        )
+
+        if not hasattr(auth_response, "user") or not auth_response.user:
+            raise ValueError(
+                f"{ErrorMessages.REGISTRATION_FAILED}: Could not create user"
             )
 
-            if not hasattr(auth_response, "user") or not auth_response.user:
-                raise ValueError(
-                    f"{ErrorMessages.REGISTRATION_FAILED}: Could not create user"
-                )
+        auth_user_id = auth_response.user.id
+        email = auth_response.user.email
 
-            logger.info(LogMessages.USER_CREATED.format(user_id=auth_response.user.id))
+        logger.info(LogMessages.USER_CREATED.format(user_id=auth_user_id))
 
-            return self._build_auth_dict(auth_response)
-
+        # 2. Insertar en public.usuario usando el repositorio
+        try:
+            perfil = await crear_perfil_usuario(
+                client=self.client,
+                auth_user_id=auth_user_id,
+                email=email,
+                nombre=user_data.nombre
+            )
         except Exception as e:
-            logger.error(f"Signup error: {e!s}")
-            raise ValueError(f"{ErrorMessages.REGISTRATION_FAILED}: {e!s}") from e
+            # Rollback: eliminar el usuario de Supabase Auth
+            logger.error(f"Error al crear perfil, intentando rollback: {e}")
+            try:
+                self.client.auth.admin.delete_user(auth_user_id)
+                logger.info(f"Rollback exitoso: usuario {auth_user_id} eliminado de Supabase")
+            except Exception as rollback_error:
+                logger.error(f"Error en rollback: {rollback_error}")
+            
+            raise RuntimeError(f"No se pudo crear el perfil de usuario: {str(e)}")
+
+        # 3. Construir la respuesta
+        user_profile = UserProfile(
+            user_id=perfil["user_id"],
+            nombre=perfil["nombre"],
+            email=perfil["email"],
+            telefono=perfil.get("telefono")
+        )
+
+        session_data = {}
+        if auth_response.session:
+            session_data = {
+                "access_token": auth_response.session.access_token,
+                "refresh_token": auth_response.session.refresh_token,
+                "token_type": "bearer"
+            }
+
+        return SignupResponse(
+            user=user_profile,
+            session=session_data
+        )
 
     async def login(self, user_data: UserLogin) -> dict[str, Any]:
         """Authenticate a user with email and password"""

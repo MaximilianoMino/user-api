@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from src.core.constants import OAuth, Validation
 
@@ -81,3 +81,45 @@ class OAuthResponse(BaseModel):
     """OAuth login response"""
 
     auth_url: str
+
+
+class SignupRequest(BaseModel):
+    """Datos necesarios para registrar un usuario."""
+
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    nombre: str = Field(..., min_length=2, max_length=100)
+
+
+class UserProfile(BaseModel):
+    """Perfil de usuario desde public.usuario."""
+
+    user_id: int
+    nombre: str
+    email: str
+    telefono: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SignupResponse(BaseModel):
+    """Respuesta del endpoint de registro."""
+
+    user: UserProfile
+    session: dict
+
+
+class OrganizacionBrief(BaseModel):
+    """Organización con el rol del usuario."""
+
+    org_id: int
+    nombre: str
+    tipo: str
+    rol: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MeResponse(BaseModel):
+    """Respuesta del endpoint /me."""
+
+    user: UserProfile
+    organizaciones: list[OrganizacionBrief]

@@ -1,0 +1,22 @@
+services:
+  api:
+    build: .
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - "8000:8000"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - USE_GSM=${USE_GSM}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - DEBUG=${DEBUG}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
+    env_file:
+      - .env
+    volumes:
+      - .:/app

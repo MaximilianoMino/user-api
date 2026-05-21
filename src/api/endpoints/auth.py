@@ -1,23 +1,30 @@
 # @track_context("auth_endpoints.md")
 
 import logging
-from typing import Any
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
+from supabase import Client, ClientOptions, create_client
 
 from src.api.dependencies import get_auth_service, get_current_user, security
+from src.core.config import settings
 from src.core.constants import Supabase
 from src.core.messages import ErrorMessages, SuccessMessages
+from src.core.supabase_client import get_supabase_client
 from src.models.auth import (
     AuthResponse,
+    MeResponse,
     OAuthCallbackRequest,
     OAuthLoginRequest,
     OAuthResponse,
     PasswordResetRequest,
+    SignupRequest,
+    SignupResponse,
     TokenResponse,
     UserCreate,
     UserLogin,
+    UserProfile,
     UserResponse,
 )
 from src.services.auth_service import AuthService
@@ -97,16 +104,20 @@ def format_auth_response(result: dict[str, Any]) -> AuthResponse:
 
 
 @router.post(
-    "/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
+    "/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED
 )
 async def signup(
-    user_data: UserCreate,
+    user_data: SignupRequest,
     auth_service: AuthService = Depends(get_auth_service),
-) -> AuthResponse:
+) -> SignupResponse:
     """Register a new user account"""
     try:
         result = await auth_service.signup(user_data)
-        return format_auth_response(result)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise handle_auth_error(e) from e
 
@@ -169,10 +180,10 @@ async def reset_password(
 
 @router.get("/session-check", status_code=status.HTTP_200_OK)
 async def session_check(
-    current_user: str = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Check if the current session is valid"""
-    return {"valid": True, "user_id": current_user}
+    return {"valid": True, "user_id": current_user["user_id"]}
 
 
 @router.post("/oauth/login", response_model=OAuthResponse)
@@ -211,3 +222,53 @@ async def oauth_callback(
         ) from e
     except Exception as e:
         raise handle_auth_error(e) from e
+
+
+@router.get("/me", response_model=MeResponse)
+async def get_me(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_client),
+) -> MeResponse:
+    """
+    Obtiene el perfil del usuario autenticado y sus organizaciones.
+    """
+    user_client = create_client(
+        settings.SUPABASE_URL,
+        settings.SUPABASE_KEY,
+        options=ClientOptions(headers={"Authorization": f"Bearer {credentials.credentials}"})
+    )
+
+    orgs_result = user_client.table("usuario_organizacion_rol").select(
+        "org_id, rol, organizacion(nombre, tipo)"
+    ).eq("user_id", current_user["user_id"]).execute()
+
+    organizaciones = []
+    for row in (orgs_result.data or []):
+        org_info = row.get("organizacion")
+        if org_info is None:
+            logger.warning(f"Organización no encontrada para org_id={row['org_id']}")
+            nombre_org = "Desconocida"
+            tipo_org = "desconocido"
+        else:
+            nombre_org = org_info.get("nombre", "")
+            tipo_org = org_info.get("tipo", "")
+        
+        organizaciones.append(
+            {
+                "org_id": row["org_id"],
+                "nombre": nombre_org,
+                "tipo": tipo_org,
+                "rol": row["rol"],
+            }
+        )
+
+    return MeResponse(
+        user=UserProfile(
+            user_id=current_user["user_id"],
+            nombre=current_user["nombre"],
+            email=current_user["email"],
+            telefono=current_user.get("telefono"),
+        ),
+        organizaciones=organizaciones,
+    )

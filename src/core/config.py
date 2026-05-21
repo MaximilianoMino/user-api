@@ -28,7 +28,15 @@ class Settings(BaseSettings):
     # Supabase - make these optional with defaults
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_JWT_SECRET: str = ""
+
+    # Gemini AI
+    GEMINI_API_KEY: str = ""
+
+    # Database
+    DATABASE_URL: str = ""  # postgresql+asyncpg://...
+    DATABASE_URL_DIRECT: str = ""  # Direct connection (no pgbouncer)
 
     # Application settings
     DEBUG: bool = Defaults.DEBUG
