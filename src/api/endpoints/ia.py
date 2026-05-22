@@ -2,8 +2,10 @@ import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_org_id
+from src.core.database import get_db
 from src.core.messages import ErrorMessages
 from src.models.ia import IAResponse
 from src.services import ia_service
@@ -24,6 +26,7 @@ async def escanear_imagen(
     file: UploadFile,
     current_user: Dict[str, Any] = Depends(get_current_user),
     org_id: int = Depends(get_org_id),
+    db: AsyncSession = Depends(get_db),
 ) -> IAResponse:
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(
@@ -38,7 +41,7 @@ async def escanear_imagen(
             detail=ErrorMessages.TAMANO_EXCEDIDO.replace("20 MB", "10 MB"),
         )
 
-    result = await ia_service.process_analysis_image(file_bytes, file.filename or "unknown")
+    result = await ia_service.process_analysis_image(file_bytes, file.filename or "unknown", db)
 
     return IAResponse(
         parametros=result.get("parametros", []),

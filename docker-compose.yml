@@ -16,6 +16,7 @@ services:
       - DEBUG=${DEBUG}
       - CORS_ORIGINS=${CORS_ORIGINS}
       - DATABASE_URL_DIRECT=${DATABASE_URL_DIRECT}
+      - BASE_URL=${BASE_URL}
     env_file:
       - .env
     volumes:

@@ -38,7 +38,8 @@ class FichaRepository:
         result = await self.db.execute(
             select(FichaReporte)
             .options(
-                selectinload(FichaReporte.muestra).selectinload(Muestra.lote)
+                selectinload(FichaReporte.muestra),
+                selectinload(FichaReporte.lote),
             )
             .where(FichaReporte.link_token == token)
         )
@@ -49,7 +50,8 @@ class FichaRepository:
         result = await self.db.execute(
             select(FichaReporte)
             .options(
-                selectinload(FichaReporte.muestra).selectinload(Muestra.lote)
+                selectinload(FichaReporte.muestra),
+                selectinload(FichaReporte.lote),
             )
             .where(FichaReporte.ficha_id == ficha_id)
         )
@@ -186,7 +188,7 @@ class FichaRepository:
             },
             "organizacion": {
                 "nombre": lote.organizacion.nombre if lote.organizacion else "",
-                "tipo": lote.organizacion.tipo.value if lote.organizacion else ""
+                "tipo": lote.organizacion.tipo if lote.organizacion else ""
             },
             "muestra": {
                 "peso_muestra": float(muestra.peso_muestra) if muestra and muestra.peso_muestra else 0.0,

@@ -150,7 +150,7 @@ class EstadoMercaderia(Enum):
     PROCESADA = "procesada"
 
 
-class LoteStatus(Enum):
+class LoteStatusSchema(Enum):
     BORRADOR = "borrador"
     MUESTREO_TOMADO = "muestreo_tomado"
     ANALISIS_COMPLETO = "analisis_completo"

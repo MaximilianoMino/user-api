@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any, Dict
 from uuid import UUID
 
@@ -6,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_org_id
-from src.core.config import settings
 from src.core.database import get_db
 from src.core.messages import ErrorMessages
 from src.repositories.ficha_repository import FichaRepository
@@ -44,7 +44,7 @@ async def create_ficha_endpoint(
             lote_id=str(lote_id),
             org_id=org_id,
             user_id=current_user["user_id"],
-            base_url=getattr(settings, 'APP_URL', 'https://agryflow.app'),
+            base_url=os.getenv("BASE_URL", "https://agryflow-app.vercel.app"),
         )
     except ValueError as e:
         error_code = str(e)
@@ -83,6 +83,7 @@ async def get_ficha_endpoint(
             db=db,
             ficha_id=str(ficha_id),
             org_id=org_id,
+            base_url=os.getenv("BASE_URL", "https://agryflow-app.vercel.app"),
         )
     except ValueError:
         raise HTTPException(status_code=404, detail=ErrorMessages.FICHA_NOT_FOUND)

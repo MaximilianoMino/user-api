@@ -7,6 +7,8 @@ class ParametroSugerido(BaseModel):
     nombre: str
     valor: float
     unidad: str
+    parametro_id: Optional[int] = None
+    codigo_db: Optional[str] = None
 
 
 class IAResponse(BaseModel):
