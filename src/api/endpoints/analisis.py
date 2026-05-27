@@ -39,7 +39,7 @@ async def create_analisis_endpoint(
 ) -> dict:
     """Crear un nuevo análisis para la muestra especificada."""
     try:
-        return await analisis_service.create_analisis(
+        result = await analisis_service.create_analisis(
             repo=repo,
             db=db,
             muestra_id=str(muestra_id),
@@ -47,6 +47,8 @@ async def create_analisis_endpoint(
             user_id=current_user["user_id"],
             data=data,
         )
+        await db.commit()
+        return result
     except ValueError as e:
         error_code = str(e)
         if error_code.startswith("PARAMETRO_NOT_FOUND:"):

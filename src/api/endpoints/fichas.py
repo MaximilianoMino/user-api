@@ -38,7 +38,7 @@ async def create_ficha_endpoint(
 ) -> dict:
     """Generar una ficha compartible para el lote."""
     try:
-        return await ficha_service.generar_ficha(
+        result = await ficha_service.generar_ficha(
             repo=repo,
             db=db,
             lote_id=str(lote_id),
@@ -46,6 +46,8 @@ async def create_ficha_endpoint(
             user_id=current_user["user_id"],
             base_url=os.getenv("BASE_URL", "https://agryflow-app.vercel.app"),
         )
+        await db.commit()
+        return result
     except ValueError as e:
         error_code = str(e)
         if error_code == "LOTE_NOT_FOUND":

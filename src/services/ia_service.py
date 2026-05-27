@@ -72,11 +72,10 @@ MAPEO_GEMINI_DB = {
     "boca de pescado": "BOCA_DE_PESCADO",
     "danios mecanicos": "DANIOS_MECANICOS",
     "piel de vaina": "PIEL_DE_VAINA",
-    "humedad": "producto_principal",
 }
 
 SUFIJOS_IGNORAR = [
-    "total", "rinde aproximado", "zaranda", "humedad", "peso de muestra",
+    "total", "rinde aproximado", "zaranda", "peso de muestra", "producto_principal",
 ]
 
 

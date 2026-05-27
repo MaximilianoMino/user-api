@@ -6,8 +6,18 @@ from io import BytesIO
 
 class TestProcessAnalysisImage:
 
+    @pytest.fixture
+    def mock_db(self):
+        db = AsyncMock()
+        async def mock_execute(*args, **kwargs):
+            result = MagicMock()
+            result.all.return_value = []
+            return result
+        db.execute.side_effect = mock_execute
+        return db
+
     @pytest.mark.asyncio
-    async def test_procesar_imagen_success(self):
+    async def test_procesar_imagen_success(self, mock_db):
         """Test 1: Gemini devuelve parámetros válidos"""
         from src.services import ia_service
 
@@ -33,7 +43,7 @@ class TestProcessAnalysisImage:
             mock_client.models = mock_models
             mock_client_class.return_value = mock_client
 
-            result = await ia_service.process_analysis_image(fake_bytes, "test.jpg")
+            result = await ia_service.process_analysis_image(fake_bytes, "test.jpg", mock_db)
 
             mock_client_class.assert_called_once_with(api_key="test-key")
             mock_models.generate_content.assert_called_once()
@@ -43,7 +53,7 @@ class TestProcessAnalysisImage:
             assert result["texto_original"] == "Humedad: 14.5%\nImpurezas: 1.2%"
 
     @pytest.mark.asyncio
-    async def test_procesar_imagen_borrosa_sin_texto(self):
+    async def test_procesar_imagen_borrosa_sin_texto(self, mock_db):
         """Test 2: Gemini no puede leer nada → array vacío"""
         from src.services import ia_service
 
@@ -66,14 +76,14 @@ class TestProcessAnalysisImage:
             mock_client.models = mock_models
             mock_client_class.return_value = mock_client
 
-            result = await ia_service.process_analysis_image(fake_bytes, "blurry.jpg")
+            result = await ia_service.process_analysis_image(fake_bytes, "blurry.jpg", mock_db)
 
             assert result["parametros"] == []
             assert result["texto_original"] == ""
             assert "mensaje" not in result or result.get("mensaje") is None
 
     @pytest.mark.asyncio
-    async def test_procesar_sin_api_key(self):
+    async def test_procesar_sin_api_key(self, mock_db):
         """Test 3: GEMINI_API_KEY no configurada"""
         from src.services import ia_service
 
@@ -82,7 +92,7 @@ class TestProcessAnalysisImage:
         with patch.object(ia_service, "settings") as mock_settings:
             mock_settings.GEMINI_API_KEY = ""
 
-            result = await ia_service.process_analysis_image(fake_bytes, "test.jpg")
+            result = await ia_service.process_analysis_image(fake_bytes, "test.jpg", mock_db)
 
             assert result["parametros"] == []
             assert result["texto_original"] == ""
@@ -90,7 +100,7 @@ class TestProcessAnalysisImage:
             assert "no está configurado" in result["mensaje"]
 
     @pytest.mark.asyncio
-    async def test_procesar_gemini_falla(self):
+    async def test_procesar_gemini_falla(self, mock_db):
         """Test 4: Gemini lanza excepción"""
         from src.services import ia_service
 
@@ -107,7 +117,7 @@ class TestProcessAnalysisImage:
             mock_client.models = mock_models
             mock_client_class.return_value = mock_client
 
-            result = await ia_service.process_analysis_image(fake_bytes, "test.jpg")
+            result = await ia_service.process_analysis_image(fake_bytes, "test.jpg", mock_db)
 
             assert result["parametros"] == []
             assert result["texto_original"] == ""

@@ -13,6 +13,9 @@ from src.models.sub_variedad import SubVariedad
 from src.models.temporada import Temporada
 from src.models.muestra import Muestra
 from src.models.evidencia import Evidencia
+from src.models.analisis import Analisis
+from src.models.analisis_resultado import AnalisisResultado
+from src.models.parametro import Parametro
 from src.models.otros import LoteDocumento
 
 
@@ -68,17 +71,56 @@ class LoteRepository:
         result = await self.db.execute(query)
         lotes = result.scalars().all()
 
+        lote_dicts = [self._to_dict(lote) for lote in lotes]
+        calidad_map = await self._get_calidad_map([l.lote_id for l in lotes])
+        for d in lote_dicts:
+            d["calidad"] = calidad_map.get(d["lote_id"])
+
         return {
-            "lotes": [self._to_dict(lote) for lote in lotes],
+            "lotes": lote_dicts,
             "total": total,
             "page": skip // limit + 1,
             "page_size": limit,
         }
 
+    async def _get_calidad_map(self, lote_ids: list) -> Dict[str, Optional[float]]:
+        """Obtener calidad (producto_principal %) del último análisis completo de cada lote."""
+        if not lote_ids:
+            return {}
+        stmt = (
+            select(
+                Muestra.lote_id,
+                Muestra.peso_muestra,
+                AnalisisResultado.valor,
+            )
+            .join(Analisis, Analisis.muestra_id == Muestra.muestra_id)
+            .join(AnalisisResultado, AnalisisResultado.analisis_id == Analisis.analisis_id)
+            .join(Parametro, Parametro.parametro_id == AnalisisResultado.parametro_id)
+            .where(
+                Muestra.lote_id.in_(lote_ids),
+                Analisis.estado == "completo",
+                Parametro.codigo == "producto_principal",
+            )
+            .order_by(Analisis.created_at.desc())
+        )
+        result = await self.db.execute(stmt)
+        rows = result.all()
+        calidad_map: Dict[str, Optional[float]] = {}
+        seen: set = set()
+        for lote_id, peso_muestra, valor in rows:
+            key = str(lote_id)
+            if key not in seen:
+                if peso_muestra is not None and valor is not None and float(peso_muestra) > 0:
+                    calidad_map[key] = float(valor) / float(peso_muestra) * 100
+                else:
+                    calidad_map[key] = None
+                seen.add(key)
+        return calidad_map
+
     def _to_dict(self, lote: Lote) -> Dict[str, Any]:
         """Convertir modelo Lote a dict para respuesta."""
         return {
-            "lote_id": lote.lote_id,
+            "lote_id": str(lote.lote_id),
             "org_id": lote.org_id,
             "variedad_id": lote.variedad_id,
             "sub_variedad_id": lote.sub_variedad_id,
@@ -95,15 +137,16 @@ class LoteRepository:
                 "temporada_id": lote.temporada.temporada_id,
                 "codigo": lote.temporada.codigo,
             } if lote.temporada else None,
-            "volumen_estimado": float(lote.volumen_estimado) if lote.volumen_estimado else None,
-            "volumen_disponible": float(lote.volumen_disponible) if lote.volumen_disponible else None,
+            "volumen_estimado": float(lote.volumen_estimado) if lote.volumen_estimado is not None else None,
+            "volumen_disponible": float(lote.volumen_disponible) if lote.volumen_disponible is not None else None,
             "estado_mercaderia": lote.estado_mercaderia,
             "status": lote.status,
             "imagen_principal": lote.imagen_principal,
             "view_count": lote.view_count,
-            "gps_lat": float(lote.gps_lat) if lote.gps_lat else None,
-            "gps_lng": float(lote.gps_lng) if lote.gps_lng else None,
-            "gps_accuracy_m": float(lote.gps_accuracy_m) if lote.gps_accuracy_m else None,
+            "gps_lat": float(lote.gps_lat) if lote.gps_lat is not None else None,
+            "gps_lng": float(lote.gps_lng) if lote.gps_lng is not None else None,
+            "gps_accuracy_m": float(lote.gps_accuracy_m) if lote.gps_accuracy_m is not None else None,
+            "humedad": float(lote.humedad) if lote.humedad is not None else None,
             "gps_captured_at": lote.gps_captured_at.isoformat() if lote.gps_captured_at else None,
             "created_at": lote.created_at.isoformat() if lote.created_at else None,
             "updated_at": lote.updated_at.isoformat() if lote.updated_at else None,
@@ -170,6 +213,8 @@ class LoteRepository:
 
         lote = await self.get_lote(org_id, lote_id)
         result = await self._to_dict_with_muestras(lote)
+        calidad_map = await self._get_calidad_map([lote.lote_id])
+        result["calidad"] = calidad_map.get(str(lote.lote_id))
 
         lote_cache.set(cache_key, result)
         return result
@@ -225,6 +270,7 @@ class LoteRepository:
             gps_lat=data.get("gps_lat"),
             gps_lng=data.get("gps_lng"),
             gps_accuracy_m=data.get("gps_accuracy_m"),
+            humedad=data.get("humedad"),
             gps_captured_at=datetime.utcnow() if data.get("gps_lat") and data.get("gps_lng") else None,
             created_by=user_id,
             updated_by=user_id,
@@ -257,14 +303,13 @@ class LoteRepository:
 
         lote.updated_by = user_id
 
-        if "volumen_estimado" in data and data["volumen_estimado"] is not None:
+        if "volumen_disponible" not in data and "volumen_estimado" in data and data["volumen_estimado"] is not None:
             lote.volumen_disponible = data["volumen_estimado"]
 
         await self.db.commit()
-        await self.db.refresh(lote)
 
         self.invalidate_lote_cache(org_id, lote_id)
-        return lote
+        return await self.get_lote(org_id, str(lote.lote_id))
 
     async def delete_lote(self, lote_id: str) -> None:
         """Soft delete de un lote."""

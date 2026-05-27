@@ -49,7 +49,7 @@ async def validar_requisitos_lote(
             )
         )
     )
-    muestra = result_muestra.scalar_one_or_none()
+    muestra = result_muestra.scalars().first()
 
     if not muestra:
         raise ValueError("FICHA_MUESTRA_NO_TOMADA")
@@ -63,7 +63,7 @@ async def validar_requisitos_lote(
             )
         )
     )
-    analisis = result_analisis.scalar_one_or_none()
+    analisis = result_analisis.scalars().first()
 
     if not analisis:
         raise ValueError("FICHA_ANALISIS_NO_COMPLETO")

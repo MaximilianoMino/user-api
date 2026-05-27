@@ -76,7 +76,7 @@ class AnalisisRepository:
             )
             self.db.add(analisis_resultado)
 
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(analisis)
         return analisis
 
@@ -92,7 +92,7 @@ class AnalisisRepository:
             )
             .where(Analisis.muestra_id == muestra_id)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def get_by_id(self, analisis_id: str) -> Optional[Analisis]:
         """Obtener un análisis por ID con sus resultados y relaciones."""
@@ -119,7 +119,7 @@ class AnalisisRepository:
         if analisis:
             analisis.observaciones_generales = observaciones_generales
             analisis.updated_by = updated_by
-            await self.db.commit()
+            await self.db.flush()
             await self.db.refresh(analisis)
         return analisis
 

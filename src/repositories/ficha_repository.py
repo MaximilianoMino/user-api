@@ -108,7 +108,7 @@ class FichaRepository:
             )
             .order_by(Muestra.created_at.desc())
         )
-        muestra = result_muestra.scalar_one_or_none()
+        muestra = result_muestra.scalars().first()
 
         analisis_data = {}
         if muestra:
@@ -124,7 +124,7 @@ class FichaRepository:
                     )
                 )
             )
-            analisis = result_analisis.scalar_one_or_none()
+            analisis = result_analisis.scalars().first()
 
             if analisis:
                 parametros = []

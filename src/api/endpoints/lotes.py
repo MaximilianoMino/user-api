@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.api.dependencies import get_current_user, get_org_id, get_lote_repository
+from src.core.database import get_db
 from src.core.messages import ErrorMessages, SuccessMessages
 from src.models.lote import (
     LoteCreate,
@@ -53,11 +56,14 @@ async def create_lote_endpoint(
     data: LoteCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
     org_id: int = Depends(get_org_id),
+    db: AsyncSession = Depends(get_db),
     repo: LoteRepository = Depends(get_lote_repository),
 ) -> LoteResponse:
     """Crear un nuevo lote"""
     try:
-        return await create_lote(repo, org_id, current_user["user_id"], data)
+        result = await create_lote(repo, org_id, current_user["user_id"], data)
+        await db.commit()
+        return result
     except ValueError as e:
         error_code = str(e)
         if error_code == "VARIEDAD_NOT_FOUND":

@@ -69,9 +69,14 @@ async def validate_parametros(
             raise ValueError(f"VALOR_FUERA_DE_RANGO:{param.parametro_id}:{peso_muestra}")
 
         parametro = existing_parametros[param.parametro_id]
+
+        valor = param.valor
+        if parametro.value_type == "porcentaje" and valor <= 100:
+            valor = round((valor / 100) * peso_muestra, 2)
+
         validated_results.append({
             "parametro_id": param.parametro_id,
-            "valor": param.valor,
+            "valor": valor,
             "unidad": parametro.unidad_default,
             "comentario": param.comentario,
         })
@@ -102,7 +107,7 @@ async def create_analisis(
     if suma_valores > peso_muestra:
         raise ValueError(f"SUMA_EXCEDE_PESO:{suma_valores}:{peso_muestra}")
 
-    if suma_valores < peso_muestra:
+    if suma_valores <= peso_muestra:
         producto_principal_param = await repo.get_parametro_by_codigo(PRODUCTO_PRINCIPAL_CODIGO)
         if not producto_principal_param:
             raise ValueError("PARAMETRO_PRODUCTO_PRINCIPAL_NO_EXISTE")
@@ -116,24 +121,24 @@ async def create_analisis(
         })
         suma_valores += diferencia
 
-    analisis = await repo.create(
-        muestra_id=muestra_id,
-        estado="completo",
-        created_by=user_id,
-        updated_by=user_id,
-        resultados=validated_results,
-        observaciones_generales=None,
-        fecha_completado=datetime.utcnow(),
-    )
+    async with db.begin_nested():
+        analisis = await repo.create(
+            muestra_id=muestra_id,
+            estado="completo",
+            created_by=user_id,
+            updated_by=user_id,
+            resultados=validated_results,
+            observaciones_generales=None,
+            fecha_completado=datetime.utcnow(),
+        )
 
-    result_lote = await db.execute(
-        select(Lote).where(Lote.lote_id == str(muestra.lote_id))
-    )
-    lote = result_lote.scalar_one_or_none()
-    if lote:
-        lote.status = "analisis_completo"
-        lote.updated_by = user_id
-        await db.commit()
+        result_lote = await db.execute(
+            select(Lote).where(Lote.lote_id == str(muestra.lote_id))
+        )
+        lote = result_lote.scalar_one_or_none()
+        if lote:
+            lote.status = "analisis_completo"
+            lote.updated_by = user_id
 
     return {"data": await repo.to_response_dict(analisis, peso_muestra)}
 

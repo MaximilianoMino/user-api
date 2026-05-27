@@ -60,6 +60,7 @@ class Lote(Base):
     gps_lng = Column(Numeric, nullable=True)
     gps_accuracy_m = Column(Numeric, nullable=True)
     gps_captured_at = Column(DateTime, nullable=True)
+    humedad = Column(Numeric(5, 2), nullable=True)
     deleted_at = Column(DateTime, nullable=True)
 
     # Relationships
@@ -93,6 +94,7 @@ class LoteBase(BaseModel):
     gps_lng: Optional[float] = None
     gps_accuracy_m: Optional[float] = None
     gps_captured_at: Optional[datetime] = None
+    humedad: Optional[float] = Field(None, ge=0, le=100)
 
 
 class LoteCreate(LoteBase):
@@ -128,6 +130,7 @@ class LoteResponse(LoteBase):
     sub_variedad: Optional[Dict[str, Any]] = None
     temporada: Optional[Dict[str, Any]] = None
     muestras: List[Dict[str, Any]] = []
+    calidad: Optional[float] = None
 
     class Config:
         from_attributes = True

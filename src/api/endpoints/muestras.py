@@ -39,7 +39,7 @@ async def create_muestra_endpoint(
 ) -> dict:
     """Registrar una nueva muestra para el lote especificado."""
     try:
-        return await create_muestra(
+        result = await create_muestra(
             repo=repo,
             db=db,
             lote_id=str(lote_id),
@@ -47,6 +47,8 @@ async def create_muestra_endpoint(
             user_id=current_user["user_id"],
             data=data,
         )
+        await db.commit()
+        return result
     except ValueError as e:
         error_code = str(e)
         if error_code == "LOTE_NOT_FOUND":
